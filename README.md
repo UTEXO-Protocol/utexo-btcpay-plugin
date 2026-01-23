@@ -11,7 +11,8 @@ Accept RGB asset payments (tokens, stablecoins) in BTCPay Server.
 - Issue new RGB assets directly from BTCPay
 - Automatic invoice settlement on payment confirmation
 - Full UTXO management for RGB allocations
-- Works with Thunderstack RGB infrastructure
+- Native rgb-lib integration (no external RGB Node required)
+- Secure local PSBT signing (mnemonic never leaves .NET)
 
 ## Installation
 
@@ -30,45 +31,38 @@ Accept RGB asset payments (tokens, stablecoins) in BTCPay Server.
 
 ## Configuration
 
-### RGB Node URL
+### Environment Variables
 
-The plugin connects to an RGB Node backend. Configure via:
-
-**Option 1: Environment Variable**
 ```bash
-RGB_NODE_URL=https://rgb-node.thunderstack.org
+# Electrum server for blockchain data
+RGB_ELECTRUM_URL=ssl://electrum.blockstream.info:60002
+
+# Directory for RGB wallet data
+RGB_DATA_DIR=/data/rgb-wallets
+
+# RGB proxy endpoint
+RGB_PROXY_ENDPOINT=rpc://proxy.iriswallet.com:443/json-rpc
 ```
 
-**Option 2: Configuration File**
+### Configuration File
 
 Create `rgb.json` in your BTCPay Server data directory:
 ```json
 {
-  "rgb_node_url": "https://rgb-node.thunderstack.org",
-  "network": "mainnet"
+  "network": "mainnet",
+  "electrum_url": "ssl://electrum.blockstream.info:60002",
+  "rgb_data_dir": "/data/rgb-wallets",
+  "proxy_endpoint": "rpc://proxy.iriswallet.com:443/json-rpc"
 }
 ```
 
 ### Network Defaults
 
-| Network | Default RGB Node URL |
+| Network | Default Electrum URL |
 |---------|---------------------|
-| Mainnet | https://rgb-node.thunderstack.org |
-| Testnet | https://rgb-node.test.thunderstack.org |
-| Regtest | http://127.0.0.1:8000 (local) |
-
-### Testnet Integration Testing
-
-To test with Bitcoin testnet and the Thunderstack RGB testnet infrastructure:
-
-1. Set BTCPay Server network to `testnet`:
-   ```bash
-   BTCPAY_NETWORK=testnet
-   ```
-
-2. The plugin will automatically use `https://rgb-node.test.thunderstack.org`
-
-3. Get testnet BTC from a faucet and fund your RGB wallet
+| Mainnet | ssl://electrum.blockstream.info:60002 |
+| Testnet | ssl://electrum.blockstream.info:60002 |
+| Regtest | tcp://127.0.0.1:50001 (local electrs) |
 
 ## Quick Start
 
@@ -115,25 +109,10 @@ RGB requires "colorable" UTXOs for asset operations:
 # Clone with submodules
 git clone --recursive https://github.com/your-org/btcpay-rgb-plugin
 
-# Bundle RGB SDK (required for PSBT signing)
-cd BTCPayServer.Plugins.RGB/Scripts
-./bundle-sdk.sh
-
 # Build
-cd ..
+cd BTCPayServer.Plugins.RGB
 dotnet build
 ```
-
-### SDK Bundling
-
-The plugin uses Jering.Javascript.NodeJS to execute the RGB SDK for cryptographic operations.
-Before deploying, bundle the SDK:
-
-```bash
-./Scripts/bundle-sdk.sh
-```
-
-This copies the compiled SDK into `Scripts/rgb-sdk/` which gets deployed with the plugin.
 
 ### Plugin Builder Deployment
 
@@ -152,20 +131,55 @@ BTCPayServer.Plugins.RGB/
 ├── Data/                 # EF Core entities & migrations
 ├── Models/               # View models
 ├── PaymentHandler/       # BTCPay payment integration
-├── Scripts/              # Jering.NodeJS wrapper for RGB SDK
-├── Services/             # Core services
-│   ├── RgbNodeClient.cs      # HTTP client for RGB Node API
-│   ├── RgbSdkService.cs      # NodeJS interop for PSBT signing
-│   ├── RGBWalletService.cs   # Wallet management
-│   └── RGBInvoiceListener.cs # Payment detection
+├── Services/
+│   ├── RgbLibService.cs       # rgb-lib-c-sharp wrapper (Lazy Loading)
+│   ├── RgbLibWalletHandle.cs  # Wallet lifecycle management
+│   ├── RGBWalletService.cs    # Wallet business logic
+│   ├── MemoryWalletSigner.cs  # Local PSBT signing (NBitcoin)
+│   ├── RgbWalletSignerProvider.cs # Signer management
+│   ├── MnemonicProtectionService.cs # Mnemonic encryption
+│   └── RGBInvoiceListener.cs  # Payment detection
 └── Views/                # Razor views
 ```
 
+### Security Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    rgb-lib-c-sharp (watch-only)                  │
+│                                                                  │
+│   Initialized with pubkey only (NO mnemonic!)                    │
+│                                                                  │
+│   • blind_receive()      → RGB invoice                          │
+│   • send_begin()         → unsigned PSBT                        │
+│   • create_utxos_begin() → unsigned PSBT                        │
+│   • list_assets()        → asset list                           │
+└─────────────────────────────────────────────────────────────────┘
+                          │
+                          ▼ Unsigned PSBT
+┌─────────────────────────────────────────────────────────────────┐
+│                 MemoryWalletSigner (C# / .NET)                   │
+│                                                                  │
+│   Mnemonic stored ONLY here (encrypted at rest)                 │
+│   SignPsbtAsync() → signed PSBT                                 │
+└─────────────────────────────────────────────────────────────────┘
+                          │
+                          ▼ Signed PSBT
+┌─────────────────────────────────────────────────────────────────┐
+│                    rgb-lib-c-sharp                               │
+│                                                                  │
+│   • send_end()           → broadcast RGB transfer               │
+│   • create_utxos_end()   → broadcast UTXO creation              │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Key principle:** Mnemonic NEVER leaves C# code to native Rust.
+
 ## Dependencies
 
-- **Jering.Javascript.NodeJS** - NodeJS interop for RGB SDK operations
+- **RgbLib** v0.3.0-beta.6 - Native rgb-lib bindings
+- **NBitcoin** - Bitcoin primitives and PSBT signing
 - **Npgsql.EntityFrameworkCore.PostgreSQL** - Database persistence
-- **NBitcoin** - Bitcoin primitives
 
 ## Troubleshooting
 
@@ -173,7 +187,7 @@ BTCPayServer.Plugins.RGB/
 Create more colorable UTXOs via RGB Wallet → UTXOs → Create UTXOs
 
 ### Invoice stays pending after payment
-1. Check RGB Node is accessible (Settings → Test Connection)
+1. Check Electrum connection (Settings → Test Connection)
 2. Ensure blocks are being mined (regtest)
 3. Click "Refresh" on RGB Wallet page
 
@@ -181,7 +195,15 @@ Create more colorable UTXOs via RGB Wallet → UTXOs → Create UTXOs
 Check BTCPay logs: `docker logs btcpay`
 
 ### Connection errors
-Verify `RGB_NODE_URL` environment variable or `rgb.json` configuration
+Verify `RGB_ELECTRUM_URL` environment variable or `rgb.json` configuration
+
+## Platform Support
+
+| Platform | Status |
+|----------|--------|
+| Linux x64 | ✅ Supported |
+| macOS ARM64 | ✅ Supported |
+| Windows | ❌ Not supported (native library limitation) |
 
 ## License
 
@@ -191,4 +213,3 @@ MIT License - See LICENSE file
 
 - GitHub Issues: [Create Issue](https://github.com/your-org/btcpay-rgb-plugin/issues)
 - BTCPay Server Community: https://chat.btcpayserver.org
-

@@ -17,7 +17,7 @@
     <div class="col-lg-8">
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i class="fa fa-plug"></i> RGB Node Connection</h5>
+                <h5 class="mb-0"><i class="fa fa-plug"></i> RGB Connection</h5>
                 @if (Model.IsConnected)
                 {
                     <span class="badge bg-success"><i class="fa fa-check"></i> Connected</span>
@@ -29,10 +29,10 @@
             </div>
             <div class="card-body">
                 <div class="mb-3">
-                    <label class="form-label">RGB Node URL</label>
-                    <input type="text" class="form-control" value="@Model.RgbNodeUrl" readonly />
+                    <label class="form-label">Electrum Server</label>
+                    <input type="text" class="form-control" value="@Model.ElectrumUrl" readonly />
                     <div class="form-text">
-                        Configured via environment variable <code>RGB_NODE_URL</code> or <code>rgb.json</code> in BTCPay data directory.
+                        Configured via environment variable <code>RGB_ELECTRUM_URL</code> or <code>rgb.json</code> in BTCPay data directory.
                     </div>
                 </div>
                 @if (!string.IsNullOrEmpty(Model.ConnectionError))

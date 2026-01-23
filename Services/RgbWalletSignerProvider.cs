@@ -9,14 +9,14 @@ namespace BTCPayServer.Plugins.RGB.Services;
 
 public class RgbWalletSignerProvider : IHostedService, IRgbWalletSignerProvider
 {
-    private readonly RGBPluginDbContextFactory _dbFactory;
-    private readonly MnemonicProtectionService _mnemonicProtection;
-    private readonly RGBConfiguration _config;
-    private readonly ILogger<RgbWalletSignerProvider> _logger;
+    readonly RGBPluginDbContextFactory _dbFactory;
+    readonly MnemonicProtectionService _mnemonicProtection;
+    readonly RGBConfiguration _config;
+    readonly ILogger<RgbWalletSignerProvider> _logger;
     
-    private readonly ConcurrentDictionary<string, IRgbWalletSigner> _signers = new();
+    readonly ConcurrentDictionary<string, IRgbWalletSigner> _signers = new();
     
-    private TaskCompletionSource _started = new();
+    TaskCompletionSource _started = new();
 
     public RgbWalletSignerProvider(
         RGBPluginDbContextFactory dbFactory,
@@ -41,7 +41,7 @@ public class RgbWalletSignerProvider : IHostedService, IRgbWalletSignerProvider
                 .Select(w => new { w.Id, w.EncryptedMnemonic, w.Network })
                 .ToListAsync(cancellationToken);
             
-            var network = GetNetwork(_config.Network);
+            var network = NetworkHelper.GetNetwork(_config.Network);
             
             foreach (var wallet in wallets)
             {
@@ -112,12 +112,4 @@ public class RgbWalletSignerProvider : IHostedService, IRgbWalletSignerProvider
             catch (Exception ex) { _logger.LogDebug(ex, "Failed to dispose signer for wallet {WalletId}", walletId); }
         }
     }
-
-    private static Network GetNetwork(string network) => network.ToLowerInvariant() switch
-    {
-        "mainnet" or "main" => Network.Main,
-        "testnet" or "test" => Network.TestNet,
-        "signet" => Network.GetNetwork("signet") ?? Network.TestNet,
-        _ => Network.RegTest
-    };
 }

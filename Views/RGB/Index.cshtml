@@ -30,6 +30,22 @@
     </div>
 }
 
+@if (!string.IsNullOrEmpty(Model.WalletAddress))
+{
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Wallet Address</h5>
+            <p class="text-muted small mb-2">Send BTC to this address to fund your RGB wallet</p>
+            <div class="input-group">
+                <input type="text" class="form-control font-monospace" id="walletAddress" value="@Model.WalletAddress" readonly />
+                <button type="button" class="btn btn-outline-secondary" onclick="navigator.clipboard.writeText(document.getElementById('walletAddress').value); this.innerHTML='✓ Copied'; setTimeout(() => this.innerHTML='📋 Copy', 2000);">
+                    📋 Copy
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 <div class="row">
     <div class="col-md-4">
         <div class="card mb-4">

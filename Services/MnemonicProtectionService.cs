@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging;
+using NBitcoin;
 
 namespace BTCPayServer.Plugins.RGB.Services;
 
@@ -54,19 +55,15 @@ public class MnemonicProtectionService
         
         if (words.Length is not (12 or 15 or 18 or 21 or 24))
             return false;
-        
-        foreach (var word in words)
+
+        try
         {
-            if (word.Length < 3 || word.Length > 8)
-                return false;
-            
-            foreach (var c in word)
-            {
-                if (c < 'a' || c > 'z')
-                    return false;
-            }
+            _ = new Mnemonic(value, Wordlist.English);
+            return true;
         }
-        
-        return true;
+        catch
+        {
+            return false;
+        }
     }
 }

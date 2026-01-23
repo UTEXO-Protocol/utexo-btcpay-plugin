@@ -56,12 +56,18 @@ public class RGBPaymentMethodHandler : IPaymentMethodHandler
             }
         }
 
-        var due = ctx.Prompt.Calculate().Due;
+        var invoicePrice = ctx.InvoiceEntity.Price;
         var multiplier = (decimal)Math.Pow(10, precision);
-        var units = due > 0 ? (long)(due * multiplier) : 1L;
+        var units = invoicePrice > 0 ? (long)(invoicePrice * multiplier) : 1L;
 
         var expiration = ctx.InvoiceEntity.ExpirationTime - DateTimeOffset.UtcNow;
         var invoice = await _wallets.CreateInvoiceAsync(config.WalletId, assetId, units, expiration, ctx.InvoiceEntity.Id);
+        
+        ctx.Prompt.Currency = ticker;
+        ctx.Prompt.Divisibility = precision;
+        
+        ctx.InvoiceEntity.Rates[ticker] = 1m;
+        ctx.InvoiceEntity.Rates[$"{ticker}_{ctx.InvoiceEntity.Currency}"] = ctx.InvoiceEntity.Price;
 
         ctx.Prompt.Destination = invoice.Invoice;
         ctx.Prompt.PaymentMethodFee = 0m;
@@ -82,8 +88,9 @@ public class RGBPaymentMethodHandler : IPaymentMethodHandler
 
     public Task BeforeFetchingRates(PaymentMethodContext ctx)
     {
-        ctx.Prompt.Currency = "BTC";
-        ctx.Prompt.Divisibility = 8;
+        ctx.Prompt.Currency = ctx.InvoiceEntity.Currency;
+        ctx.Prompt.Divisibility = 0;
+        ctx.Prompt.PaymentMethodFee = 0m;
         return Task.CompletedTask;
     }
 

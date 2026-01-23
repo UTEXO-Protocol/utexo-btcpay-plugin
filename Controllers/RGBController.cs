@@ -6,6 +6,7 @@ using BTCPayServer.Payments;
 using BTCPayServer.Plugins.RGB.Data;
 using BTCPayServer.Plugins.RGB.Data.Entities;
 using BTCPayServer.Plugins.RGB.Models;
+using BTCPayServer.Plugins.RGB.PaymentHandler;
 using BTCPayServer.Plugins.RGB.Services;
 using BTCPayServer.Security;
 using BTCPayServer.Services.Invoices;
@@ -24,15 +25,14 @@ namespace BTCPayServer.Plugins.RGB.Controllers;
 public class RGBController : Controller
 {
     readonly RGBWalletService _wallets;
-    readonly RgbNodeClient _rgb;
     readonly StoreRepository _stores;
     readonly PaymentMethodHandlerDictionary _handlers;
     readonly ILogger<RGBController> _log;
 
-    public RGBController(RGBWalletService wallets, RgbNodeClient rgb, StoreRepository stores, 
+    public RGBController(RGBWalletService wallets, StoreRepository stores,
         PaymentMethodHandlerDictionary handlers, ILogger<RGBController> log)
     {
-        _wallets = wallets; _rgb = rgb; _stores = stores; _handlers = handlers; _log = log;
+        _wallets = wallets; _stores = stores; _handlers = handlers; _log = log;
     }
 
     [HttpGet]
@@ -52,12 +52,12 @@ public class RGBController : Controller
 
         try
         {
-            var creds = _wallets.GetCredentials(wallet);
-            var (balance, assets) = await FetchWalletOverview(creds);
-            
+            var (balance, assets, address) = await FetchWalletOverview(wallet.Id);
+
             vm.BtcBalance = balance.Vanilla.Spendable + balance.Colored.Spendable;
             vm.ColoredBalance = balance.Colored.Spendable;
             vm.Assets = assets.Select(a => a.ToViewModel()).ToList();
+            vm.WalletAddress = address;
             vm.IsConnected = true;
         }
         catch (Exception ex)
@@ -70,20 +70,20 @@ public class RGBController : Controller
     }
 
     [HttpGet("setup")]
-    public IActionResult Setup(string storeId) => 
+    public IActionResult Setup(string storeId) =>
         View(new RGBSetupViewModel { StoreId = storeId });
 
     [HttpPost("setup")]
     public async Task<IActionResult> SetupWallet(string storeId, RGBSetupViewModel model)
     {
-        if (!ModelState.IsValid) 
+        if (!ModelState.IsValid)
             return View("Setup", model);
 
         try
         {
             var wallet = await _wallets.CreateWalletAsync(storeId, model.WalletName);
             await EnableRgbPaymentMethod(storeId, wallet.Id);
-            
+
             TempData["SuccessMessage"] = "RGB wallet created!";
             return RedirectToAction(nameof(Index), new { storeId });
         }
@@ -93,7 +93,7 @@ public class RGBController : Controller
             return View("Setup", model);
         }
     }
-    
+
     [HttpPost("enable")]
     public async Task<IActionResult> EnablePaymentMethod(string storeId)
     {
@@ -119,8 +119,7 @@ public class RGBController : Controller
         var wallet = await RequireWallet(storeId);
         if (wallet == null) return RedirectToAction(nameof(Setup), new { storeId });
 
-        var creds = _wallets.GetCredentials(wallet);
-        var assets = await _rgb.ListAssetsAsync(creds);
+        var assets = await _wallets.ListAssetsAsync(wallet.Id);
 
         return View(new RGBAssetsViewModel
         {
@@ -134,7 +133,7 @@ public class RGBController : Controller
     {
         var wallet = await RequireWallet(storeId);
         if (wallet == null) return RedirectToAction(nameof(Setup), new { storeId });
-        
+
         return View(new RGBIssueAssetViewModel { StoreId = storeId });
     }
 
@@ -165,8 +164,7 @@ public class RGBController : Controller
         var wallet = await RequireWallet(storeId);
         if (wallet == null) return RedirectToAction(nameof(Setup), new { storeId });
 
-        var creds = _wallets.GetCredentials(wallet);
-        var unspents = await _rgb.ListUnspentsAsync(creds);
+        var unspents = await _wallets.ListUnspentsAsync(wallet.Id);
 
         return View(new RGBUtxosViewModel
         {
@@ -212,8 +210,8 @@ public class RGBController : Controller
 
         var assets = await _wallets.ListAssetsAsync(wallet.Id);
         var selectedAsset = assetId ?? assets.FirstOrDefault()?.AssetId;
-        
-        var transfers = string.IsNullOrEmpty(selectedAsset) 
+
+        var transfers = string.IsNullOrEmpty(selectedAsset)
             ? new List<RgbTransfer>()
             : await _wallets.GetTransfersAsync(wallet.Id, selectedAsset);
 
@@ -263,7 +261,8 @@ public class RGBController : Controller
 
         var store = await _stores.FindStore(storeId);
         var config = GetRgbConfig(store);
-        
+        var rgbConfig = HttpContext.RequestServices.GetService<RGBConfiguration>();
+
         var vm = new RGBSettingsViewModel
         {
             StoreId = storeId,
@@ -276,7 +275,7 @@ public class RGBController : Controller
             CreatedAt = wallet.CreatedAt,
             DefaultAssetId = config?.DefaultAssetId,
             AcceptAnyAsset = config?.AcceptAnyAsset ?? false,
-            RgbNodeUrl = HttpContext.RequestServices.GetService<RGBConfiguration>()?.RgbNodeUrl ?? "N/A"
+            ElectrumUrl = rgbConfig?.ElectrumUrl ?? "N/A"
         };
 
         try
@@ -288,12 +287,12 @@ public class RGBController : Controller
         catch (Exception ex)
         {
             vm.ConnectionError = ex.Message;
-            _log.LogWarning(ex, "RGB node unreachable");
+            _log.LogWarning(ex, "RGB wallet connection failed");
         }
 
         return View(vm);
     }
-    
+
     [HttpPost("test-connection")]
     public async Task<IActionResult> TestConnection(string storeId)
     {
@@ -302,8 +301,8 @@ public class RGBController : Controller
 
         try
         {
-            await _rgb.GetBtcBalanceAsync(_wallets.GetCredentials(wallet));
-            TempData["SuccessMessage"] = "Connected to RGB node";
+            await _wallets.GetBtcBalanceAsync(wallet.Id);
+            TempData["SuccessMessage"] = "Connected to RGB wallet";
         }
         catch (Exception ex)
         {
@@ -335,7 +334,7 @@ public class RGBController : Controller
 
         store.SetPaymentMethodConfig(_handlers[RGBPlugin.RGBPaymentMethodId], config);
         await _stores.UpdateStore(store);
-        
+
         TempData["SuccessMessage"] = "Settings saved";
         return RedirectToAction(nameof(Settings), new { storeId });
     }
@@ -347,12 +346,13 @@ public class RGBController : Controller
         return w;
     }
 
-    async Task<(BtcBalance, List<RgbAsset>)> FetchWalletOverview(RGBWalletCredentials creds)
+    async Task<(BtcBalance, List<RgbAsset>, string?)> FetchWalletOverview(string walletId)
     {
-        var bal = _rgb.GetBtcBalanceAsync(creds);
-        var assets = _rgb.ListAssetsAsync(creds);
-        await Task.WhenAll(bal, assets);
-        return (bal.Result, assets.Result);
+        var balTask = _wallets.GetBtcBalanceAsync(walletId);
+        var assetsTask = _wallets.ListAssetsAsync(walletId);
+        var addrTask = _wallets.GetAddressAsync(walletId);
+        await Task.WhenAll(balTask, assetsTask, addrTask);
+        return (balTask.Result, assetsTask.Result, addrTask.Result);
     }
 
     async Task EnableRgbPaymentMethod(string storeId, string walletId)

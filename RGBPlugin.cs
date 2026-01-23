@@ -7,9 +7,9 @@ using BTCPayServer.Payments;
 using BTCPayServer.Plugins.RGB.Data;
 using BTCPayServer.Plugins.RGB.PaymentHandler;
 using BTCPayServer.Plugins.RGB.Services;
-using Jering.Javascript.NodeJS;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using NBitcoin;
 using System.Text.Json;
 
@@ -28,7 +28,7 @@ public class RGBPlugin : BaseBTCPayServerPlugin
     public override void Execute(IServiceCollection services)
     {
         var ctx = (PluginServiceCollection)services;
-        
+
         var config = LoadConfiguration(ctx);
         if (config == null) return;
 
@@ -40,28 +40,17 @@ public class RGBPlugin : BaseBTCPayServerPlugin
         });
         services.AddStartupTask<RGBPluginMigrationRunner>();
 
-        services.AddNodeJS();
-        services.Configure<NodeJSProcessOptions>(opts =>
-        {
-            var pluginDir = Path.GetDirectoryName(typeof(RGBPlugin).Assembly.Location);
-            opts.ProjectPath = Path.Combine(pluginDir ?? ".", "Scripts");
-        });
-        
-        ConfigureSdkPath();
-
-        services.AddHttpClient("RgbNode");
-        services.AddSingleton<RgbNodeClient>();
-        services.AddSingleton<RgbSdkService>();
+        services.AddSingleton<IRgbLibService, RgbLibService>();
         services.AddSingleton<MnemonicProtectionService>();
         services.AddSingleton<RgbWalletSignerProvider>();
         services.AddHostedService(sp => sp.GetRequiredService<RgbWalletSignerProvider>());
         services.AddSingleton<RGBWalletService>();
         services.AddSingleton<RGBPaymentMethodHandler>();
         services.AddSingleton<IPaymentMethodHandler>(sp => sp.GetRequiredService<RGBPaymentMethodHandler>());
-        
+
         services.AddSingleton<RGBCheckoutModelExtension>();
         services.AddSingleton<ICheckoutModelExtension>(sp => sp.GetRequiredService<RGBCheckoutModelExtension>());
-        
+
         services.AddSingleton<RGBInvoiceListener>();
         services.AddHostedService(sp => sp.GetRequiredService<RGBInvoiceListener>());
         services.AddUIExtension("checkout-end", "RGB/RGBMethodCheckout");
@@ -73,10 +62,7 @@ public class RGBPlugin : BaseBTCPayServerPlugin
     {
         var netType = DefaultConfiguration.GetNetworkType(
             ctx.BootstrapServices.GetRequiredService<IConfiguration>());
-        
-        var nodeUrl = ResolveNodeUrl(netType);
-        if (nodeUrl == null) return null;
-        
+
         var network = netType.ToString() switch
         {
             "Main" => "mainnet",
@@ -88,8 +74,9 @@ public class RGBPlugin : BaseBTCPayServerPlugin
         var dataDir = new DataDirectories()
             .Configure(ctx.BootstrapServices.GetRequiredService<IConfiguration>())
             .DataDir;
+
         var configPath = Path.Combine(dataDir, "rgb.json");
-        
+
         if (File.Exists(configPath))
         {
             try
@@ -98,65 +85,62 @@ public class RGBPlugin : BaseBTCPayServerPlugin
                 var fromFile = JsonSerializer.Deserialize<RGBConfiguration>(json);
                 if (fromFile != null)
                 {
-                    if (!IsValidRgbNodeUrl(fromFile.RgbNodeUrl))
-                        throw new InvalidOperationException($"Invalid rgb_node_url in {configPath}");
                     return fromFile;
                 }
             }
-            catch (JsonException)
+            catch (JsonException ex)
             {
+                var logger = ctx.BootstrapServices.GetService<ILoggerFactory>()?.CreateLogger<RGBPlugin>();
+                logger?.LogWarning(ex, "Failed to parse rgb.json config at {Path}, using defaults", configPath);
             }
         }
 
-        return new RGBConfiguration(nodeUrl, network);
+        var electrumUrl = ResolveElectrumUrl(netType);
+        var rgbDataDir = ResolveRgbDataDir(dataDir);
+        var proxyEndpoint = ResolveProxyEndpoint(netType);
+
+        return new RGBConfiguration(network, electrumUrl, rgbDataDir, proxyEndpoint);
     }
 
-    private static string? ResolveNodeUrl(ChainName net)
+    private static string ResolveElectrumUrl(ChainName net)
     {
-        var env = Environment.GetEnvironmentVariable("RGB_NODE_URL");
+        var env = Environment.GetEnvironmentVariable("RGB_ELECTRUM_URL");
         if (!string.IsNullOrEmpty(env))
-        {
-            if (!IsValidRgbNodeUrl(env))
-                throw new InvalidOperationException($"Invalid RGB_NODE_URL: {env}. Must be a valid HTTP/HTTPS URL.");
             return env;
-        }
 
         return net.ToString() switch
         {
-            "Main" => "https://rgb-node.thunderstack.org",
-            "TestNet" => "https://rgb-node.test.thunderstack.org",
-            "Regtest" => IsRunningInDocker() ? "http://host.docker.internal:8000" : "http://127.0.0.1:8000",
-            "Signet" => null,
-            _ => null
+            "Main" => "ssl://electrum.blockstream.info:60002",
+            "TestNet" => "ssl://electrum.blockstream.info:60002",
+            "Regtest" => IsRunningInDocker() ? "tcp://electrs:50001" : "tcp://127.0.0.1:50001",
+            _ => "tcp://127.0.0.1:50001"
         };
     }
-    
-    private static bool IsValidRgbNodeUrl(string url)
+
+    private static string ResolveRgbDataDir(string btcPayDataDir)
     {
-        if (string.IsNullOrWhiteSpace(url))
-            return false;
-            
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
-            return false;
-            
-        if (uri.Scheme != "http" && uri.Scheme != "https")
-            return false;
-        
-        if (url.Contains("..") || url.Contains("<") || url.Contains(">"))
-            return false;
-            
-        return true;
+        var env = Environment.GetEnvironmentVariable("RGB_DATA_DIR");
+        if (!string.IsNullOrEmpty(env))
+            return env;
+
+        return Path.Combine(btcPayDataDir, "rgb-wallets");
+    }
+
+    private static string ResolveProxyEndpoint(ChainName net)
+    {
+        var env = Environment.GetEnvironmentVariable("RGB_PROXY_ENDPOINT");
+        if (!string.IsNullOrEmpty(env))
+            return env;
+
+        return net.ToString() switch
+        {
+            "Main" => "rpc://proxy.iriswallet.com/0.2/json-rpc",
+            "TestNet" => "rpc://proxy.iriswallet.com/0.2/json-rpc",
+            _ => "rpc://proxy.iriswallet.com/0.2/json-rpc"
+        };
     }
 
     private static bool IsRunningInDocker() =>
-        Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true" 
+        Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true"
         || File.Exists("/.dockerenv");
-
-    private static void ConfigureSdkPath()
-    {
-        var dir = Path.GetDirectoryName(typeof(RGBPlugin).Assembly.Location) ?? ".";
-        var sdk = Path.Combine(dir, "Scripts", "rgb-sdk", "index.cjs");
-        if (File.Exists(sdk))
-            Environment.SetEnvironmentVariable("RGB_SDK_PATH", Path.GetFullPath(sdk));
-    }
 }

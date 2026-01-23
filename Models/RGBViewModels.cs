@@ -17,6 +17,7 @@ public class RGBIndexViewModel : StoreViewModel
 {
     public string WalletId { get; set; } = "";
     public string WalletName { get; set; } = "";
+    public string? WalletAddress { get; set; }
     public long BtcBalance { get; set; }
     public long ColoredBalance { get; set; }
     public int ColorableUtxoCount { get; set; }
@@ -109,7 +110,7 @@ public class RGBSettingsViewModel : StoreViewModel
     public string? DefaultAssetId { get; set; }
     public bool AcceptAnyAsset { get; set; }
     public List<RGBAssetViewModel> AvailableAssets { get; set; } = [];
-    public string RgbNodeUrl { get; set; } = "";
+    public string ElectrumUrl { get; set; } = "";
     public bool IsConnected { get; set; }
     public string? ConnectionError { get; set; }
 }
