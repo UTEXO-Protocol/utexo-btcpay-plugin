@@ -177,7 +177,7 @@ BTCPayServer.Plugins.RGB/
 
 ## Dependencies
 
-- **RgbLib** v0.3.0-beta.6 - Native rgb-lib bindings
+- **RgbLib** v0.3.0-beta.8 - Native rgb-lib bindings
 - **NBitcoin** - Bitcoin primitives and PSBT signing
 - **Npgsql.EntityFrameworkCore.PostgreSQL** - Database persistence
 
@@ -202,8 +202,9 @@ Verify `RGB_ELECTRUM_URL` environment variable or `rgb.json` configuration
 | Platform | Status |
 |----------|--------|
 | Linux x64 | ✅ Supported |
-| macOS ARM64 | ✅ Supported |
-| Windows | ❌ Not supported (native library limitation) |
+| macOS ARM64 (Apple Silicon) | ✅ Supported |
+| macOS x64 (Intel) | ❌ Not supported (native library not included) |
+| Windows | ❌ Not supported (native library not included) |
 
 ## License
 
