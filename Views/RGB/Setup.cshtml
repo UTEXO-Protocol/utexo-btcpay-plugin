@@ -1,6 +1,6 @@
 @model RGBSetupViewModel
 @{
-    ViewData["Title"] = "Setup RGB Wallet";
+    ViewData["Title"] = "Setup Utexo Wallet";
 }
 
 <div class="sticky-header-setup"></div>
@@ -14,11 +14,11 @@
     <div class="col-lg-8">
         <div class="card">
             <div class="card-body">
-                <h4 class="card-title mb-4">Create RGB Wallet</h4>
+                <h4 class="card-title mb-4">Create Utexo Wallet</h4>
                 
                 <p class="text-muted mb-4">
-                    RGB enables you to issue and receive client-side validated assets on Bitcoin. 
-                    Create a wallet to start accepting RGB payments.
+                    Accept native USDT and digital asset payments powered by Utexo. 
+                    Create a wallet to start receiving payments.
                 </p>
 
                 <form asp-action="SetupWallet" asp-route-storeId="@Model.StoreId" method="post">
@@ -26,13 +26,14 @@
                     
                     <div class="mb-3">
                         <label asp-for="WalletName" class="form-label"></label>
-                        <input asp-for="WalletName" class="form-control" placeholder="My RGB Wallet" />
+                        <input asp-for="WalletName" class="form-control" placeholder="My Utexo Wallet" />
                         <span asp-validation-for="WalletName" class="text-danger"></span>
                     </div>
 
                     <div class="alert alert-info">
-                        <strong>Note:</strong> A new RGB wallet will be created with fresh keys. 
-                        The wallet will be connected to the local RGB Node at <code>http://127.0.0.1:8000</code>.
+                        <strong>Note:</strong> A new wallet will be created with secure keys.
+                        <br/>
+                        <small class="text-muted">Network: <code>@Model.Network</code> | Electrum: <code>@Model.ElectrumUrl</code></small>
                     </div>
 
                     <button type="submit" class="btn btn-primary">
@@ -44,15 +45,16 @@
         
         <div class="card mt-4">
             <div class="card-body">
-                <h5 class="card-title">What is RGB?</h5>
+                <h5 class="card-title">What is Utexo?</h5>
                 <p class="card-text">
-                    RGB is a protocol for client-side validated assets on Bitcoin. Unlike other token protocols, 
-                    RGB keeps all asset data off-chain while using Bitcoin for security and finality.
+                    Utexo enables native USDT and BTC payments on Bitcoin with instant zero-fee settlements.
+                    All payments are private, non-custodial, and secured by Bitcoin's proof-of-work.
                 </p>
                 <ul>
-                    <li><strong>Privacy:</strong> Asset transfers are not visible on the blockchain</li>
-                    <li><strong>Scalability:</strong> Off-chain validation reduces blockchain bloat</li>
-                    <li><strong>Bitcoin-native:</strong> Secured by Bitcoin's proof-of-work</li>
+                    <li><strong>Zero Fees:</strong> No transaction fees for asset transfers</li>
+                    <li><strong>Instant:</strong> Lightning-fast settlement times</li>
+                    <li><strong>Private:</strong> Asset transfers are not visible on the blockchain</li>
+                    <li><strong>Non-custodial:</strong> You control your keys</li>
                 </ul>
             </div>
         </div>

@@ -11,6 +11,9 @@ public class RGBSetupViewModel : StoreViewModel
 {
     [Display(Name = "Wallet Name")]
     public string WalletName { get; set; } = "RGB Wallet";
+    
+    public string ElectrumUrl { get; set; } = "";
+    public string Network { get; set; } = "";
 }
 
 public class RGBIndexViewModel : StoreViewModel

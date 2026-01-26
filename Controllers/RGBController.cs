@@ -70,8 +70,16 @@ public class RGBController : Controller
     }
 
     [HttpGet("setup")]
-    public IActionResult Setup(string storeId) =>
-        View(new RGBSetupViewModel { StoreId = storeId });
+    public IActionResult Setup(string storeId)
+    {
+        var rgbConfig = HttpContext.RequestServices.GetService<RGBConfiguration>();
+        return View(new RGBSetupViewModel 
+        { 
+            StoreId = storeId,
+            ElectrumUrl = rgbConfig?.ElectrumUrl ?? "N/A",
+            Network = rgbConfig?.Network ?? "unknown"
+        });
+    }
 
     [HttpPost("setup")]
     public async Task<IActionResult> SetupWallet(string storeId, RGBSetupViewModel model)
