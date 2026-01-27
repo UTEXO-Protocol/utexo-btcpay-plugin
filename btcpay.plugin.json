@@ -3,7 +3,7 @@
   "identifier": "BTCPayServer.Plugins.RgbUtexo",
   "name": "RGB Utexo",
   "description": "Accept RGB asset payments in your BTCPay Server store. Supports asset issuance, blind receive invoices, and multi-network deployment.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "Utexo",
   "authorLink": "https://utexo.com",
   "projectUrl": "https://github.com/UTEXO-Protocol/utexo-btcpay-plugin",
