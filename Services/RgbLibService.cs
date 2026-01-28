@@ -72,22 +72,25 @@ public class RgbLibService : IRgbLibService
                 walletId, 
                 dbWallet.XpubVanilla, 
                 dbWallet.XpubColored, 
-                dbWallet.MasterFingerprint)));
+                dbWallet.MasterFingerprint,
+                dbWallet.Network)));
 
         return lazyWallet.Value;
     }
 
-    RgbLibWalletHandle CreateWalletInternal(string walletId, string xpubVanilla, string xpubColored, string masterFingerprint)
+    RgbLibWalletHandle CreateWalletInternal(string walletId, string xpubVanilla, string xpubColored, string masterFingerprint, string walletNetwork)
     {
-        _log.LogInformation("Lazy loading wallet {WalletId}", walletId);
+        _log.LogInformation("Lazy loading wallet {WalletId} on network {Network}", walletId, walletNetwork);
 
         var dataDir = Path.Combine(_config.RgbDataDir, walletId);
         Directory.CreateDirectory(dataDir);
+        
+        var networkSettings = _config.GetNetworkSettings(walletNetwork);
 
         var walletConfig = new Dictionary<string, object?>
         {
             ["data_dir"] = dataDir,
-            ["bitcoin_network"] = NetworkHelper.MapNetworkToRgbLibFormat(_config.Network),
+            ["bitcoin_network"] = NetworkHelper.MapNetworkToRgbLibFormat(walletNetwork),
             ["database_type"] = "Sqlite",
             ["max_allocations_per_utxo"] = _config.MaxAllocationsPerUtxo,
             ["account_xpub_vanilla"] = xpubVanilla,
@@ -100,9 +103,9 @@ public class RgbLibService : IRgbLibService
         
         var configJson = JsonSerializer.Serialize(walletConfig);
         var wallet = new RgbLibWallet(configJson);
-        wallet.GoOnline(_config.ElectrumUrl, true);
+        wallet.GoOnline(networkSettings.ElectrumUrl, true);
 
-        _log.LogInformation("Wallet {WalletId} loaded successfully", walletId);
+        _log.LogInformation("Wallet {WalletId} connected to {Electrum}", walletId, networkSettings.ElectrumUrl);
         return new RgbLibWalletHandle(wallet, walletId);
     }
 

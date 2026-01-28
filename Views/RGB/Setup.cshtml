@@ -29,11 +29,24 @@
                         <input asp-for="WalletName" class="form-control" placeholder="My Utexo Wallet" />
                         <span asp-validation-for="WalletName" class="text-danger"></span>
                     </div>
+                    
+                    <div class="mb-3">
+                        <label asp-for="SelectedNetwork" class="form-label">Network</label>
+                        <select asp-for="SelectedNetwork" class="form-select" id="networkSelect">
+                            @foreach (var network in Model.AvailableNetworks)
+                            {
+                                <option value="@network" selected="@(network == Model.SelectedNetwork)">@network</option>
+                            }
+                        </select>
+                        <div class="form-text">Select the Bitcoin network for this wallet.</div>
+                    </div>
 
-                    <div class="alert alert-info">
-                        <strong>Note:</strong> A new wallet will be created with secure keys.
-                        <br/>
-                        <small class="text-muted">Network: <code>@Model.Network</code> | Electrum: <code>@Model.ElectrumUrl</code></small>
+                    <div class="alert alert-info" id="networkInfo">
+                        <strong>Network Configuration:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Electrum: <code id="electrumUrl">@Model.ElectrumUrl</code></li>
+                            <li>Proxy: <code id="proxyUrl">@Model.ProxyEndpoint</code></li>
+                        </ul>
                     </div>
 
                     <button type="submit" class="btn btn-primary">
@@ -45,3 +58,30 @@
     </div>
 </div>
 
+@section PageFootContent {
+<script>
+    const networkSettings = {
+        'regtest': {
+            electrum: 'tcp://regtest.thunderstack.org:50001',
+            proxy: 'rpc://proxy.iriswallet.com/0.2/json-rpc'
+        },
+        'testnet': {
+            electrum: 'ssl://electrum.iriswallet.com:50013',
+            proxy: 'rpcs://proxy.iriswallet.com/0.2/json-rpc'
+        },
+        'mainnet': {
+            electrum: 'ssl://electrum.iriswallet.com:50003',
+            proxy: 'rpcs://proxy.iriswallet.com/0.2/json-rpc'
+        }
+    };
+    
+    document.getElementById('networkSelect').addEventListener('change', function() {
+        const network = this.value;
+        const settings = networkSettings[network];
+        if (settings) {
+            document.getElementById('electrumUrl').textContent = settings.electrum;
+            document.getElementById('proxyUrl').textContent = settings.proxy;
+        }
+    });
+</script>
+}

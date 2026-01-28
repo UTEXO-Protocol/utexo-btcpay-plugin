@@ -41,12 +41,16 @@ public class RGBController : Controller
         var wallet = await _wallets.GetWalletForStoreAsync(storeId);
         if (wallet == null)
         {
-            var rgbConfig = HttpContext.RequestServices.GetService<RGBConfiguration>();
+            var defaultNetwork = "regtest";
+            var networkSettings = NetworkSettings.GetForNetwork(defaultNetwork);
             return View("Setup", new RGBSetupViewModel 
             { 
                 StoreId = storeId,
-                ElectrumUrl = rgbConfig?.ElectrumUrl ?? "N/A",
-                Network = rgbConfig?.Network ?? "unknown"
+                SelectedNetwork = defaultNetwork,
+                AvailableNetworks = NetworkSettings.AvailableNetworks,
+                ElectrumUrl = networkSettings.ElectrumUrl,
+                ProxyEndpoint = networkSettings.ProxyEndpoint,
+                Network = defaultNetwork
             });
         }
 
@@ -80,12 +84,16 @@ public class RGBController : Controller
     [HttpGet("setup")]
     public IActionResult Setup(string storeId)
     {
-        var rgbConfig = HttpContext.RequestServices.GetService<RGBConfiguration>();
+        var defaultNetwork = "regtest";
+        var networkSettings = NetworkSettings.GetForNetwork(defaultNetwork);
         return View(new RGBSetupViewModel 
         { 
             StoreId = storeId,
-            ElectrumUrl = rgbConfig?.ElectrumUrl ?? "N/A",
-            Network = rgbConfig?.Network ?? "unknown"
+            SelectedNetwork = defaultNetwork,
+            AvailableNetworks = NetworkSettings.AvailableNetworks,
+            ElectrumUrl = networkSettings.ElectrumUrl,
+            ProxyEndpoint = networkSettings.ProxyEndpoint,
+            Network = defaultNetwork
         });
     }
 
@@ -93,19 +101,23 @@ public class RGBController : Controller
     public async Task<IActionResult> SetupWallet(string storeId, RGBSetupViewModel model)
     {
         if (!ModelState.IsValid)
+        {
+            model.AvailableNetworks = NetworkSettings.AvailableNetworks;
             return View("Setup", model);
+        }
 
         try
         {
-            var wallet = await _wallets.CreateWalletAsync(storeId, model.WalletName);
+            var wallet = await _wallets.CreateWalletAsync(storeId, model.WalletName, model.SelectedNetwork);
             await EnableRgbPaymentMethod(storeId, wallet.Id);
 
-            TempData["SuccessMessage"] = "RGB wallet created!";
+            TempData["SuccessMessage"] = $"RGB wallet created on {model.SelectedNetwork}!";
             return RedirectToAction(nameof(Index), new { storeId });
         }
         catch (Exception ex)
         {
             ModelState.AddModelError("", ex.Message);
+            model.AvailableNetworks = NetworkSettings.AvailableNetworks;
             return View("Setup", model);
         }
     }
@@ -278,6 +290,7 @@ public class RGBController : Controller
         var store = await _stores.FindStore(storeId);
         var config = GetRgbConfig(store);
         var rgbConfig = HttpContext.RequestServices.GetService<RGBConfiguration>();
+        var networkSettings = rgbConfig?.GetNetworkSettings(wallet.Network) ?? NetworkSettings.GetForNetwork(wallet.Network);
 
         var vm = new RGBSettingsViewModel
         {
@@ -291,7 +304,7 @@ public class RGBController : Controller
             CreatedAt = wallet.CreatedAt,
             DefaultAssetId = config?.DefaultAssetId,
             AcceptAnyAsset = config?.AcceptAnyAsset ?? false,
-            ElectrumUrl = rgbConfig?.ElectrumUrl ?? "N/A"
+            ElectrumUrl = networkSettings.ElectrumUrl
         };
 
         try

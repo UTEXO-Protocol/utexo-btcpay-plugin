@@ -31,10 +31,11 @@ public class RGBWalletService
         _log = log;
     }
 
-    public async Task<RGBWallet> CreateWalletAsync(string storeId, string? name = null, CancellationToken ct = default)
+    public async Task<RGBWallet> CreateWalletAsync(string storeId, string? name = null, string? selectedNetwork = null, CancellationToken ct = default)
     {
-        var keys = _rgbLib.GenerateKeys(_cfg.Network);
-        var network = NetworkHelper.GetNetwork(_cfg.Network);
+        var walletNetwork = selectedNetwork ?? _cfg.Network;
+        var keys = _rgbLib.GenerateKeys(walletNetwork);
+        var network = NetworkHelper.GetNetwork(walletNetwork);
 
         var wallet = new RGBWallet
         {
@@ -45,7 +46,7 @@ public class RGBWalletService
             XpubColored = keys.AccountXpubColored,
             MasterFingerprint = keys.MasterFingerprint,
             EncryptedMnemonic = _mnemonicProtection.Protect(keys.Mnemonic),
-            Network = _cfg.Network,
+            Network = walletNetwork,
             CreatedAt = DateTimeOffset.UtcNow
         };
 
@@ -56,7 +57,7 @@ public class RGBWalletService
         _signerProvider.RegisterSigner(wallet.Id, keys.Mnemonic, network);
         ClearSensitiveString(keys.Mnemonic);
 
-        _log.LogInformation("created wallet {Id} for {Store}", wallet.Id, storeId);
+        _log.LogInformation("created wallet {Id} for {Store} on {Network}", wallet.Id, storeId, walletNetwork);
         return wallet;
     }
 

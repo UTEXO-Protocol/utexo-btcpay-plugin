@@ -12,7 +12,13 @@ public class RGBSetupViewModel : StoreViewModel
     [Display(Name = "Wallet Name")]
     public string WalletName { get; set; } = "RGB Wallet";
     
+    [Display(Name = "Network")]
+    public string SelectedNetwork { get; set; } = "regtest";
+    
+    public string[] AvailableNetworks { get; set; } = ["regtest", "testnet", "mainnet"];
+    
     public string ElectrumUrl { get; set; } = "";
+    public string ProxyEndpoint { get; set; } = "";
     public string Network { get; set; } = "";
 }
 
