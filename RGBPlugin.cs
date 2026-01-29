@@ -96,7 +96,7 @@ public class RGBPlugin : BaseBTCPayServerPlugin
         }
 
         var electrumUrl = ResolveElectrumUrl(netType);
-        var rgbDataDir = ResolveRgbDataDir(dataDir);
+        var rgbDataDir = ResolveRgbDataDir(dataDir, netType);
         var proxyEndpoint = ResolveProxyEndpoint(netType);
 
         return new RGBConfiguration(network, electrumUrl, rgbDataDir, proxyEndpoint);
@@ -117,13 +117,22 @@ public class RGBPlugin : BaseBTCPayServerPlugin
         };
     }
 
-    private static string ResolveRgbDataDir(string btcPayDataDir)
+    private static string ResolveRgbDataDir(string btcPayDataDir, ChainName net)
     {
         var env = Environment.GetEnvironmentVariable("RGB_DATA_DIR");
         if (!string.IsNullOrEmpty(env))
             return env;
 
-        return Path.Combine(btcPayDataDir, "rgb-wallets");
+        var networkFolder = net.ToString() switch
+        {
+            "Main" => "Main",
+            "TestNet" => "TestNet",
+            "Regtest" => "RegTest",
+            "Signet" => "Signet",
+            _ => "RegTest"
+        };
+
+        return Path.Combine(btcPayDataDir, networkFolder, "rgb-wallets");
     }
 
     private static string ResolveProxyEndpoint(ChainName net)
