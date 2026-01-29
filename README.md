@@ -1,5 +1,7 @@
 # RGB BTCPay Server Plugin
 
+> **Beta notice:** This package is currently in beta. Please test thoroughly in development environments before using in production.
+
 Accept RGB asset payments (tokens, stablecoins) in BTCPay Server.
 
 [![BTCPay Server](https://img.shields.io/badge/BTCPay%20Server-Plugin-brightgreen)](https://btcpayserver.org)
