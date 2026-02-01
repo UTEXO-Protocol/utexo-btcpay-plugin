@@ -50,7 +50,8 @@ public class RGBController : Controller
                 AvailableNetworks = NetworkSettings.AvailableNetworks,
                 ElectrumUrl = networkSettings.ElectrumUrl,
                 ProxyEndpoint = networkSettings.ProxyEndpoint,
-                Network = defaultNetwork
+                Network = defaultNetwork,
+                AllNetworkSettings = BuildAllNetworkSettings()
             });
         }
 
@@ -93,8 +94,19 @@ public class RGBController : Controller
             AvailableNetworks = NetworkSettings.AvailableNetworks,
             ElectrumUrl = networkSettings.ElectrumUrl,
             ProxyEndpoint = networkSettings.ProxyEndpoint,
-            Network = defaultNetwork
+            Network = defaultNetwork,
+            AllNetworkSettings = BuildAllNetworkSettings()
         });
+    }
+    
+    static Dictionary<string, NetworkSettingsDto> BuildAllNetworkSettings()
+    {
+        return NetworkSettings.AvailableNetworks.ToDictionary(
+            n => n,
+            n => {
+                var s = NetworkSettings.GetForNetwork(n);
+                return new NetworkSettingsDto { Electrum = s.ElectrumUrl, Proxy = s.ProxyEndpoint };
+            });
     }
 
     [HttpPost("setup")]

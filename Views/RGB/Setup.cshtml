@@ -60,20 +60,7 @@
 
 @section PageFootContent {
 <script>
-    const networkSettings = {
-        'regtest': {
-            electrum: 'tcp://regtest.thunderstack.org:50001',
-            proxy: 'rpc://proxy.iriswallet.com/0.2/json-rpc'
-        },
-        'testnet': {
-            electrum: 'ssl://electrum.iriswallet.com:50013',
-            proxy: 'rpcs://proxy.iriswallet.com/0.2/json-rpc'
-        },
-        'mainnet': {
-            electrum: 'ssl://electrum.iriswallet.com:50003',
-            proxy: 'rpcs://proxy.iriswallet.com/0.2/json-rpc'
-        }
-    };
+    const networkSettings = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AllNetworkSettings));
     
     document.getElementById('networkSelect').addEventListener('change', function() {
         const network = this.value;

@@ -108,13 +108,20 @@ public class RGBPlugin : BaseBTCPayServerPlugin
         if (!string.IsNullOrEmpty(env))
             return env;
 
-        return net.ToString() switch
+        var network = net.ToString() switch
         {
-            "Main" => "ssl://electrum.blockstream.info:60002",
-            "TestNet" => "ssl://electrum.blockstream.info:60002",
-            "Regtest" => IsRunningInDocker() ? "tcp://electrs:50001" : "tcp://127.0.0.1:50001",
-            _ => "tcp://127.0.0.1:50001"
+            "Main" => "mainnet",
+            "TestNet" => "testnet",
+            "Regtest" => "regtest",
+            _ => "regtest"
         };
+        
+        var defaults = NetworkSettings.GetForNetwork(network);
+        
+        if (net.ToString() == "Regtest" && IsRunningInDocker())
+            return "tcp://electrs:50001";
+            
+        return defaults.ElectrumUrl;
     }
 
     private static string ResolveRgbDataDir(string btcPayDataDir, ChainName net)
@@ -141,12 +148,15 @@ public class RGBPlugin : BaseBTCPayServerPlugin
         if (!string.IsNullOrEmpty(env))
             return env;
 
-        return net.ToString() switch
+        var network = net.ToString() switch
         {
-            "Main" => "rpc://proxy.iriswallet.com/0.2/json-rpc",
-            "TestNet" => "rpc://proxy.iriswallet.com/0.2/json-rpc",
-            _ => "rpc://proxy.iriswallet.com/0.2/json-rpc"
+            "Main" => "mainnet",
+            "TestNet" => "testnet",
+            "Regtest" => "regtest",
+            _ => "regtest"
         };
+        
+        return NetworkSettings.GetForNetwork(network).ProxyEndpoint;
     }
 
     private static bool IsRunningInDocker() =>

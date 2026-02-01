@@ -20,6 +20,14 @@ public class RGBSetupViewModel : StoreViewModel
     public string ElectrumUrl { get; set; } = "";
     public string ProxyEndpoint { get; set; } = "";
     public string Network { get; set; } = "";
+    
+    public Dictionary<string, NetworkSettingsDto> AllNetworkSettings { get; set; } = new();
+}
+
+public class NetworkSettingsDto
+{
+    public string Electrum { get; set; } = "";
+    public string Proxy { get; set; } = "";
 }
 
 public class RGBIndexViewModel : StoreViewModel
